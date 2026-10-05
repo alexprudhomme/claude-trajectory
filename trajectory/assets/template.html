@@ -1,0 +1,328 @@
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Trajectory design system: Rosé Pine Dawn (light) / Rosé Pine Moon (dark), IBM Plex.
+   Layout: header, lane strip, next action, optional phase strip, then a git-style graph: lane rails in the gutter, steps in one list. */
+:root {
+  --base: #faf4ed; --surface: #fffaf3; --overlay: #f2e9e1;
+  --muted: #9893a5; --subtle: #797593; --text: #575279;
+  --love: #b4637a; --gold: #ea9d34; --rose: #d7827e; --pine: #286983; --foam: #56949f; --iris: #907aa9;
+  --hl-low: #f4ede8; --hl-med: #dfdad9; --hl-high: #cecacd;
+  --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --base: #232136; --surface: #2a273f; --overlay: #393552;
+    --muted: #6e6a86; --subtle: #908caa; --text: #e0def4;
+    --love: #eb6f92; --gold: #f6c177; --rose: #ea9a97; --pine: #3e8fb0; --foam: #9ccfd8; --iris: #c4a7e7;
+    --hl-low: #2a283e; --hl-med: #44415a; --hl-high: #56526e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --base: #232136; --surface: #2a273f; --overlay: #393552;
+  --muted: #6e6a86; --subtle: #908caa; --text: #e0def4;
+  --love: #eb6f92; --gold: #f6c177; --rose: #ea9a97; --pine: #3e8fb0; --foam: #9ccfd8; --iris: #c4a7e7;
+  --hl-low: #2a283e; --hl-med: #44415a; --hl-high: #56526e;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--base); color: var(--text); font: 15px/1.55 var(--sans); padding: 28px 16px 48px; }
+main { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+a { color: var(--pine); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--iris); outline-offset: 2px; border-radius: 3px; }
+
+header { display: flex; flex-direction: column; gap: 8px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rose); }
+h1 { font: 700 clamp(26px, 5vw, 34px)/1.15 var(--sans); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.goal { margin: 0; color: var(--subtle); max-width: 65ch; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+
+.next { background: var(--surface); border: 1px solid var(--hl-med); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.next .label { font: 500 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--iris); }
+.next p { margin: 0; font-weight: 500; max-width: 70ch; }
+
+.phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.phase { padding: 12px 14px; border: 1px solid var(--hl-med); border-radius: 8px; background: var(--hl-low); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.phase.is-now { background: var(--surface); border-color: var(--iris); }
+.phase h3 { margin: 0; font: 600 13px/1.2 var(--sans); display: flex; justify-content: space-between; gap: 8px; }
+.phase .now-tag { font: 500 10px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--iris); }
+.phase dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; font-size: 12.5px; }
+.phase dt { color: var(--muted); }
+.phase dd { margin: 0; font: 11.5px/1.45 var(--mono); overflow-wrap: anywhere; }
+
+/* Graph: one rail per lane in the gutter, steps in one list ordered by when they can happen; edges drawn in SVG. */
+.graph { position: relative; }
+.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.edges path { fill: none; stroke-width: 2; stroke-linecap: round; }
+.edges .rail-line { stroke-width: 2; opacity: 0.55; }
+.edges .open { stroke-dasharray: 2 5; }
+.rows { list-style: none; margin: 0; padding: 0 0 0 var(--gutter, 40px); display: flex; flex-direction: column; }
+.stop { position: relative; }
+.dot { position: absolute; left: calc(var(--x) - var(--gutter, 40px) - 7px); top: 12px; width: 14px; height: 14px; border-radius: 50%; background: var(--base); border: 3px solid var(--c); z-index: 1; }
+.stop[data-status="done"] .dot { background: var(--c); }
+.stop[data-status="active"] .dot { box-shadow: 0 0 0 4px var(--hl-med); }
+.lane-tag { font: 500 11px/1 var(--mono); color: var(--lane); }
+.card { padding: 6px 0 22px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.card h2 { margin: 0; font: 600 17px/1.3 var(--sans); text-wrap: balance; }
+.stop[data-status="done"] .card h2 { color: var(--subtle); }
+.pill { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 8px; border-radius: 999px; color: var(--c); border: 1px solid var(--c); }
+.kind { font: 500 11px/1 var(--mono); color: var(--muted); }
+.card p { margin: 0; color: var(--subtle); max-width: 68ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.fact { font: 12px/1.4 var(--mono); background: var(--overlay); border-radius: 4px; padding: 3px 7px; color: var(--text); overflow-wrap: anywhere; }
+.fact b { font-weight: 500; color: var(--muted); }
+.gate { font-size: 13px; color: var(--text); padding-left: 10px; border-left: 2px solid var(--gold); }
+.gate b { color: var(--gold); font-weight: 600; }
+
+.lane-strip { display: flex; flex-direction: column; gap: 6px; }
+.lane-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13.5px; }
+/* Lanes: each gets a Rosé Pine accent for its rail; status keeps its own colors on the dots. */
+.lane-line .lane-name { font: 500 12px/1 var(--mono); color: var(--lane, var(--rose)); min-width: 9ch; }
+.lane-line .swatch { width: 14px; height: 3px; border-radius: 2px; background: var(--lane); align-self: center; }
+.lane-line .mini { width: 9px; height: 9px; border-radius: 50%; background: var(--c); display: inline-block; align-self: center; }
+.lane-line .lane-now { color: var(--text); }
+.lane-line .lane-state { color: var(--muted); font-size: 12.5px; }
+.next ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.next li { font-weight: 500; }
+.next li b { font: 500 12px/1 var(--mono); color: var(--rose); margin-right: 6px; }
+.deps { display: flex; flex-direction: column; gap: 3px; font-size: 13px; padding-left: 10px; border-left: 2px solid var(--hl-high); }
+.deps .dep { display: flex; align-items: baseline; gap: 6px; color: var(--subtle); }
+.deps .dep .mini { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; flex: none; align-self: center; }
+.deps .dep.open { color: var(--text); }
+.deps .dep .where { color: var(--lane, var(--muted)); font: 11.5px/1 var(--mono); }
+.deps .dep-label { font-weight: 600; color: var(--subtle); }
+[data-status="done"] { --c: var(--pine); }
+[data-status="active"] { --c: var(--iris); }
+[data-status="waiting"] { --c: var(--gold); }
+[data-status="blocked"] { --c: var(--love); }
+[data-status="todo"] { --c: var(--muted); }
+
+.empty { padding: 20px; border: 1px dashed var(--hl-high); border-radius: 8px; color: var(--muted); }
+footer { font-size: 12px; color: var(--muted); }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow" id="eyebrow">Project trajectory</span>
+    <h1 id="name">{{TITLE}}</h1>
+    <p class="goal" id="goal">Loading the project status…</p>
+    <div class="meta-row" id="meta"></div>
+  </header>
+  <section class="lane-strip" id="lane-strip" aria-label="Where each lane is" hidden></section>
+  <section class="next" id="next" hidden>
+    <span class="label">Next action</span>
+    <div id="next-body"></div>
+  </section>
+  <section class="phases" id="phases" aria-label="Phases" hidden></section>
+  <section aria-label="Steps" id="steps">
+    <div class="empty" id="empty">Steps appear here once the coordinating Claude session writes the project status.</div>
+  </section>
+  <footer id="footer">Maintained by the coordinating Claude session.</footer>
+</main>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const LABEL = { done: "Done", active: "In progress", waiting: "Waiting", blocked: "Blocked", todo: "Not started" };
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const link = (text, href) => {
+    if (!href || !/^https:\/\//.test(href)) return document.createTextNode(text);
+    const a = el("a", null, text); a.href = href; a.target = "_blank"; a.rel = "noopener"; return a;
+  };
+  const fact = (label, value, href) => { const f = el("span", "fact"); f.append(el("b", null, label + " "), link(value, href)); return f; };
+  const when = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }); };
+
+  // Lanes are optional: without `lanes`, every step goes in one default lane and the page is a single track.
+  function render(s) {
+    if (!s) return;
+    if (s.name) { $("name").textContent = s.name; document.title = s.name; }
+    if (s.eyebrow) $("eyebrow").textContent = s.eyebrow;
+    $("goal").textContent = s.goal || "";
+    const meta = $("meta"); meta.replaceChildren();
+    if (s.epic) meta.append(link(s.epic, s.epicUrl));
+    if (s.updatedAt) meta.append(el("span", null, "Updated " + when(s.updatedAt)));
+
+    const steps = (Array.isArray(s.steps) ? s.steps : []).map((st) => ({ ...st, status: LABEL[st.status] ? st.status : "todo" }));
+    const declared = Array.isArray(s.lanes) ? s.lanes.filter((l) => l && l.id) : [];
+    const lanes = declared.map((l) => ({ ...l, steps: [] }));
+    const fallback = { id: "", title: "", steps: [] };
+    steps.forEach((st) => (lanes.find((l) => l.id === st.lane) || fallback).steps.push(st));
+    if (fallback.steps.length || !lanes.length) lanes.push(fallback);
+    const byId = new Map(steps.map((st) => [st.id, st]));
+    const laneTitle = (st) => (lanes.find((l) => l.steps.includes(st)) || {}).title || "";
+    const multi = lanes.filter((l) => l.steps.length).length > 1;
+    
+    // Where each lane is: its first step that isn't done.
+    const strip = $("lane-strip"); strip.replaceChildren(); strip.hidden = !multi;
+    if (multi) lanes.filter((l) => l.steps.length).forEach((l) => {
+      const cur = l.steps.find((st) => st.status !== "done");
+      const line = el("div", "lane-line");
+      line.dataset.status = cur ? cur.status : "done";
+      line.append(el("span", "swatch"), el("span", "lane-name", l.title || "Other"), el("span", "mini"));
+      line.append(el("span", "lane-now", cur ? cur.title : "All done"));
+      if (cur) line.append(el("span", "lane-state", LABEL[cur.status]));
+      strip.append(line);
+    });
+
+    // Next action: one project-wide line, plus one per lane that declares it.
+    const nexts = [];
+    if (s.nextAction) nexts.push(["", s.nextAction]);
+    lanes.forEach((l) => { if (l.nextAction) nexts.push([l.title, l.nextAction]); });
+    $("next").hidden = !nexts.length;
+    const nb = $("next-body"); nb.replaceChildren();
+    if (nexts.length === 1 && !nexts[0][0]) nb.append(el("p", null, nexts[0][1]));
+    else { const ul = el("ul"); nexts.forEach(([who, txt]) => { const li = el("li"); if (who) li.append(el("b", null, who)); li.append(document.createTextNode(txt)); ul.append(li); }); nb.append(ul); }
+
+    const phases = $("phases"); phases.replaceChildren();
+    const ps = Array.isArray(s.phases) ? s.phases : [];
+    phases.hidden = !ps.length;
+    ps.forEach((p) => {
+      const box = el("div", "phase" + (p.current ? " is-now" : ""));
+      const h = el("h3", null, p.title || "");
+      if (p.current) h.append(el("span", "now-tag", "Now"));
+      const dl = el("dl");
+      (Array.isArray(p.rows) ? p.rows : []).forEach(([k, v]) => dl.append(el("dt", null, k), el("dd", null, v)));
+      box.append(h, dl); phases.append(box);
+    });
+
+    if (!steps.length) return;
+    renderGraph(steps, lanes.filter((l) => l.steps.length), byId, multi);
+  }
+
+  const LANE_COLORS = ["--pine", "--iris", "--rose", "--foam", "--gold", "--love"];
+  const LANE_GAP = 22, LANE_PAD = 13;
+  let relayout = null;
+
+  // Order: each step comes after the steps it depends on and after the previous step in its lane.
+  function rank(steps, byId, laneOf) {
+    const prevInLane = new Map();
+    const lastSeen = new Map();
+    steps.forEach((st) => { const l = laneOf(st); if (lastSeen.has(l)) prevInLane.set(st.id, lastSeen.get(l)); lastSeen.set(l, st); });
+    const parents = (st) => {
+      const ps = (Array.isArray(st.dependsOn) ? st.dependsOn : []).map((id) => byId.get(id)).filter(Boolean);
+      const prev = prevInLane.get(st.id); if (prev && !ps.includes(prev)) ps.push(prev);
+      return ps;
+    };
+    const memo = new Map(), visiting = new Set();
+    const depth = (st) => {
+      if (memo.has(st.id)) return memo.get(st.id);
+      if (visiting.has(st.id)) return 0; // a cycle in the data: don't loop
+      visiting.add(st.id);
+      const d = parents(st).reduce((m, p) => Math.max(m, depth(p) + 1), 0);
+      visiting.delete(st.id); memo.set(st.id, d); return d;
+    };
+    const idx = new Map(steps.map((st, i) => [st.id, i]));
+    return { parents, prevInLane, order: steps.slice().sort((a, b) => depth(a) - depth(b) || idx.get(a.id) - idx.get(b.id)) };
+  }
+
+  function renderGraph(steps, lanes, byId, multi) {
+    const laneIndex = new Map(lanes.map((l, i) => [l, i]));
+    const laneOf = (st) => lanes.find((l) => l.steps.includes(st));
+    const laneX = (l) => LANE_PAD + laneIndex.get(l) * LANE_GAP;
+    const laneColor = (l) => "var(" + LANE_COLORS[laneIndex.get(l) % LANE_COLORS.length] + ")";
+    const gutter = LANE_PAD * 2 + (lanes.length - 1) * LANE_GAP + 10;
+    lanes.forEach((l) => { l.color = laneColor(l); });
+    document.querySelectorAll("#lane-strip .lane-line").forEach((line, i) => { if (lanes[i]) line.style.setProperty("--lane", lanes[i].color); });
+
+    const { parents, prevInLane, order } = rank(steps, byId, laneOf);
+    const wrap = $("steps"); wrap.replaceChildren();
+    const graph = el("div", "graph"); graph.style.setProperty("--gutter", gutter + "px");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("class", "edges"); svg.setAttribute("aria-hidden", "true");
+    const ol = el("ol", "rows");
+    const items = new Map();
+    order.forEach((st) => {
+      const l = laneOf(st);
+      const li = stepItem(st, l, byId, laneOf, multi);
+      li.style.setProperty("--x", laneX(l) + "px");
+      li.style.setProperty("--lane", l.color);
+      items.set(st.id, li); ol.append(li);
+    });
+    graph.append(svg, ol); wrap.append(graph);
+
+    const draw = () => {
+      const top = graph.getBoundingClientRect().top;
+      const y = (id) => { const d = items.get(id).querySelector(".dot").getBoundingClientRect(); return d.top - top + d.height / 2; };
+      svg.setAttribute("width", gutter); svg.setAttribute("height", graph.offsetHeight);
+      svg.replaceChildren();
+      const path = (d, color, cls) => { const p = document.createElementNS(svg.namespaceURI, "path"); p.setAttribute("d", d); p.setAttribute("style", "stroke:" + color); if (cls) p.setAttribute("class", cls); svg.append(p); };
+      // Rails: a lane's line runs between its consecutive steps.
+      order.forEach((st) => {
+        const prev = prevInLane.get(st.id); if (!prev) return;
+        const l = laneOf(st), x = laneX(l);
+        path(`M${x} ${y(prev.id)} L${x} ${y(st.id)}`, l.color, "rail-line" + (prev.status === "done" ? "" : " open"));
+      });
+      // Forks and merges: a curve from each dependency in another lane.
+      order.forEach((st) => {
+        const l = laneOf(st), x2 = laneX(l), y2 = y(st.id);
+        parents(st).forEach((p) => {
+          const pl = laneOf(p); if (pl === l) return;
+          const x1 = laneX(pl), y1 = y(p.id), bend = Math.min(40, (y2 - y1) / 2);
+          path(`M${x1} ${y1} L${x1} ${y2 - bend * 2} C${x1} ${y2 - bend} ${x2} ${y2 - bend} ${x2} ${y2}`, pl.color, p.status === "done" ? "" : "open");
+        });
+      });
+    };
+    draw();
+    if (relayout) relayout.disconnect();
+    if (window.ResizeObserver) { relayout = new ResizeObserver(() => draw()); relayout.observe(graph); }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  }
+
+  function stepItem(st, lane, byId, laneOf, multi) {
+    const li = el("li", "stop"); li.dataset.status = st.status;
+    li.append(el("span", "dot"));
+    const card = el("div", "card");
+    const top = el("div", "card-top");
+    top.append(el("h2", null, st.title || ""), el("span", "pill", LABEL[st.status]));
+    if (multi && lane.title) top.append(el("span", "lane-tag", lane.title));
+    if (st.kind) top.append(el("span", "kind", st.kind));
+    card.append(top);
+    if (st.summary) card.append(el("p", null, st.summary));
+    const facts = el("div", "facts");
+    if (st.pr) facts.append(fact("PR", st.pr, st.prUrl));
+    if (st.jira) facts.append(fact("Jira", st.jira, st.jiraUrl));
+    if (st.repo) facts.append(fact("Repo", st.repo));
+    if (st.branch) facts.append(fact("Branch", st.branch));
+    if (st.base) facts.append(fact("Base", st.base));
+    if (st.session) facts.append(fact("herdr", st.session));
+    if (facts.childElementCount) card.append(facts);
+    const deps = (Array.isArray(st.dependsOn) ? st.dependsOn : []).map((id) => byId.get(id)).filter(Boolean);
+    if (deps.length && st.status !== "done") {
+      const box = el("div", "deps");
+      box.append(el("span", "dep-label", "Depends on"));
+      deps.forEach((d) => {
+        const row = el("div", "dep" + (d.status === "done" ? "" : " open"));
+        row.dataset.status = d.status;
+        row.append(el("span", "mini"), document.createTextNode(d.title + (d.status === "done" ? " · done" : " · " + LABEL[d.status].toLowerCase())));
+        const other = laneOf(d);
+        if (multi && other && other !== lane) { const w = el("span", "where", other.title); w.style.setProperty("--lane", other.color); row.append(w); }
+        box.append(row);
+      });
+      card.append(box);
+    }
+    if (st.gate && st.status !== "done") { const g = el("div", "gate"); g.append(el("b", null, "Waits for: "), document.createTextNode(st.gate)); card.append(g); }
+    if (st.note) card.append(el("p", null, st.note));
+    li.append(card);
+    return li;
+  }
+
+  function offline(msg) { $("goal").textContent = msg; $("empty").textContent = msg; }
+
+  // Local copy: build.mjs embeds the status as window.__TRAJECTORY__.
+  if (window.__TRAJECTORY__) { render(window.__TRAJECTORY__); $("footer").textContent = "Local copy, maintained by the coordinating Claude session."; return; }
+
+  // Claude artifact: the status lives in the artifact database, doc trajectory/status.
+  const pending = window.claude?.use?.("db");
+  if (!pending) { offline("Project status isn't available in this view."); return; }
+  pending.then((db) => {
+    if (!db) { offline("Project status isn't available in this view. Open the artifact on claude.ai while signed in."); return; }
+    db.doc("trajectory/status").onSnapshot(
+      (snap) => snap.exists ? render(snap.data()) : offline("No project status yet."),
+      () => offline("Couldn't load the project status. Reload the page to try again.")
+    );
+  });
+})();
+</script>

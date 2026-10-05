@@ -1,0 +1,24 @@
+{
+  "name": "Lanes Example",
+  "eyebrow": "Example data · not a real project",
+  "goal": "Fake project that shows how lanes fork and merge: four lines of work that start apart, wait on each other and join for one release.",
+  "epic": "EX-100",
+  "updatedAt": "2026-10-05T20:00:00Z",
+  "lanes": [
+    {"id": "api", "title": "api", "nextAction": "Nothing until the web beta ships."},
+    {"id": "web", "title": "web", "nextAction": "Finish porting the filter components."},
+    {"id": "cdn", "title": "cdn", "nextAction": "Get the new CDN path approved."},
+    {"id": "docs", "title": "docs", "nextAction": "Review the migration guide draft."}
+  ],
+  "steps": [
+    {"id": "a1", "lane": "api", "title": "Add the new filter API", "kind": "PR", "status": "done", "pr": "api#101", "session": "ex-101 · w1"},
+    {"id": "a2", "lane": "api", "title": "Release the API beta", "kind": "Release", "status": "done"},
+    {"id": "d1", "lane": "docs", "title": "Draft the migration guide", "kind": "PR", "status": "active", "dependsOn": ["a1"], "summary": "Starts as soon as the API shape is fixed.", "pr": "docs#42", "session": "ex-104 · w4"},
+    {"id": "w1", "lane": "web", "title": "Port filter components", "kind": "PR", "status": "active", "dependsOn": ["a2"], "pr": "web#210", "session": "ex-102 · w2"},
+    {"id": "c1", "lane": "cdn", "title": "Add the new CDN path", "kind": "PR", "status": "blocked", "gate": "Security review of the new path.", "pr": "cdn#99", "session": "ex-103 · w3"},
+    {"id": "w2", "lane": "web", "title": "Release the web beta", "kind": "Release", "status": "todo", "dependsOn": ["c1"], "summary": "Joins the cdn lane: the beta is served from the new path."},
+    {"id": "a3", "lane": "api", "title": "Promote the API to GA", "kind": "Release", "status": "todo", "dependsOn": ["w2"]},
+    {"id": "d2", "lane": "docs", "title": "Publish the migration guide", "kind": "Release", "status": "todo", "dependsOn": ["w2"]},
+    {"id": "s1", "lane": "api", "title": "Announce the release", "kind": "Comms", "status": "todo", "dependsOn": ["d2"], "summary": "Every lane has merged by here."}
+  ]
+}
